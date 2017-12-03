@@ -443,6 +443,48 @@ resources:
           port_range_min: 443
           port_range_max: 443
 
+{% if num_cns|int > 0 %}
+  cns-secgrp:
+    type: OS::Neutron::SecurityGroup
+    properties:
+      name:
+        str_replace:
+          template: openshift-ansible-cluster_id-cns-secgrp
+          params:
+            cluster_id: {{ stack_name }}
+      description:
+        str_replace:
+          template: Security group for cluster_id OpenShift cns cluster nodes
+          params:
+            cluster_id: {{ stack_name }}
+      rules:
+        # glusterfs_sshd
+        - direction: ingress
+          protocol: tcp
+          port_range_min: 2222
+          port_range_max: 2222
+        # heketi dialing backends
+        - direction: ingress
+          protocol: tcp
+          port_range_min: 10250
+          port_range_max: 10250
+        # glusterfs_management
+        - direction: ingress
+          protocol: tcp
+          port_range_min: 24007
+          port_range_max: 24007
+        # glusterfs_rdma
+        - direction: ingress
+          protocol: tcp
+          port_range_min: 24008
+          port_range_max: 24008
+        # glusterfs_bricks
+        - direction: ingress
+          protocol: tcp
+          port_range_min: 49152
+          port_range_max: 49251
+{% endif %}
+
 {% if num_dns|int > 0 %}
   dns-secgrp:
     type: OS::Neutron::SecurityGroup
@@ -885,4 +927,61 @@ resources:
     depends_on:
       - interface
 {% endif %}
+{% endif %}
+
+{% if num_cns|int > 0 %}
+  cns:
+    type: OS::Heat::ResourceGroup
+    properties:
+      count: {{ num_cns }}
+      resource_def:
+        type: server.yaml
+        properties:
+          name:
+            str_replace:
+              template: k8s_type-%index%.cluster_id
+              params:
+                cluster_id: {{ stack_name }}
+                k8s_type: {{ cns_hostname | default('cns')}}
+          cluster_env: {{ public_dns_domain }}
+          cluster_id:  {{ stack_name }}
+          group:
+            str_replace:
+              template: k8s_type.cluster_id
+              params:
+                k8s_type: cns
+                cluster_id: {{ stack_name }}
+          type:        cns
+          image:       {{ openstack_cns_image | default(openstack_image) }}
+          flavor:      {{ cns_flavor }}
+          key_name:    {{ ssh_public_key }}
+{% if provider_network %}
+          net:         {{ provider_network }}
+          net_name:    {{ provider_network }}
+{% else %}
+          net:         { get_resource: net }
+          subnet:      { get_resource: subnet }
+          net_name:
+            str_replace:
+              template: openshift-ansible-cluster_id-net
+              params:
+                cluster_id: {{ stack_name }}
+{% if openshift_use_flannel|default(False)|bool %}
+          attach_data_net: true
+          data_net:    { get_resource: data_net }
+          data_subnet: { get_resource: data_subnet }
+{% endif %}
+{% endif %}
+          secgrp:
+{% if openstack_flat_secgrp|default(False)|bool %}
+            - { get_resource: flat-secgrp }
+{% else %}
+            - { get_resource: node-secgrp }
+{% endif %}
+            - { get_resource: cns-secgrp }
+            - { get_resource: common-secgrp }
+{% if not provider_network %}
+          floating_network: {{ external_network }}
+{% endif %}
+          volume_size: {{ cns_volume_size }}
 {% endif %}

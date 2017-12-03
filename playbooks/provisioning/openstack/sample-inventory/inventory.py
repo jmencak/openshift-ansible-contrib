@@ -34,7 +34,10 @@ if __name__ == '__main__':
            if server.metadata['host-type'] == 'node' and
            server.metadata['sub-host-type'] == 'app']
 
-    nodes = list(set(masters + infra_hosts + app))
+    cns = [server.name for server in cluster_hosts
+           if server.metadata['host-type'] == 'cns']
+
+    nodes = list(set(masters + infra_hosts + app + cns))
 
     dns = [server.name for server in cluster_hosts
            if server.metadata['host-type'] == 'dns']
@@ -55,6 +58,7 @@ if __name__ == '__main__':
     inventory['infra_hosts'] = {'hosts': infra_hosts}
     inventory['app'] = {'hosts': app}
     inventory['dns'] = {'hosts': dns}
+    inventory['glusterfs'] = {'hosts': cns}
     inventory['lb'] = {'hosts': lb}
 
     for server in cluster_hosts:
@@ -78,6 +82,9 @@ if __name__ == '__main__':
         # TODO(shadower): what about multiple networks?
         if server.private_v4:
             vars['private_v4'] = server.private_v4
+
+        if server.metadata['host-type'] == 'cns':
+            vars['glusterfs_devices'] = ['/dev/nvme0n1']
 
         node_labels = server.metadata.get('node_labels')
         if node_labels:

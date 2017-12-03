@@ -107,6 +107,7 @@
     - "{{ openstack_lb_image }}"
     - "{{ openstack_etcd_image }}"
     - "{{ openstack_dns_image }}"
+    - "{{ openstack_cns_image }}"
     loop_control:
       loop_var: image
 
@@ -119,5 +120,6 @@
     - "{{ lb_flavor }}"
     - "{{ etcd_flavor }}"
     - "{{ dns_flavor }}"
+    - "{{ cns_flavor }}"
     loop_control:
       loop_var: flavor
